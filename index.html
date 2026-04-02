@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlgoMaster Pro - Platform Belajar Algoritma</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'algomaster-v2';
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // State Global
+        window.state = {
+            user: null,
+            currentView: 'splash',
+            selectedMateri: null,
+            progress: [],
+            favorites: [],
+            leaderboard: [],
+            score: 0,
+            materi: [
+                { 
+                    id: 'bubble-sort', 
+                    title: 'Bubble Sort', 
+                    desc: 'Algoritma pengurutan paling dasar yang bekerja dengan menukar elemen berdekatan jika urutannya salah.', 
+                    difficulty: 'Mudah', 
+                    color: 'from-blue-500 to-cyan-400', 
+                    video: 'https://www.youtube.com/embed/xli_Fi7CuzA',
+                    code: `// Coba modifikasi array di bawah ini!\nlet angka = [64, 34, 25, 12, 22, 11, 90];\n\nfunction bubbleSort(arr) {\n  let n = arr.length;\n  for (let i = 0; i < n; i++) {\n    for (let j = 0; j < n - i - 1; j++) {\n      if (arr[j] > arr[j + 1]) {\n        [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];\n      }\n    }\n  }\n  return arr;\n}\n\nconsole.log("Hasil Akhir:", bubbleSort(angka));`
+                },
+                { 
+                    id: 'binary-search', 
+                    title: 'Binary Search', 
+                    desc: 'Metode pencarian efisien pada data terurut dengan membagi rentang pencarian menjadi dua terus menerus.', 
+                    difficulty: 'Menengah', 
+                    color: 'from-purple-500 to-pink-400', 
+                    video: 'https://www.youtube.com/embed/MFhxShGxHWc',
+                    code: `let data = [10, 20, 30, 40, 50, 60, 70];\nlet cari = 40;\n\nfunction binarySearch(arr, target) {\n  let low = 0, high = arr.length - 1;\n  while (low <= high) {\n    let mid = Math.floor((low + high) / 2);\n    if (arr[mid] === target) return mid;\n    if (arr[mid] < target) low = mid + 1;\n    else high = mid - 1;\n  }\n  return -1;\n}\n\nconsole.log("Angka " + cari + " ada di indeks: " + binarySearch(data, cari));`
+                }
+            ],
+            kamus: [
+                { term: 'Algorithm', def: 'Prosedur langkah demi langkah untuk penghitungan.' },
+                { term: 'Big O', def: 'Cara mengukur efisiensi waktu algoritma.' },
+                { term: 'Compiler', def: 'Program yang menerjemahkan kode ke bahasa mesin.' },
+                { term: 'Debugging', def: 'Proses mencari dan memperbaiki kesalahan kode.' }
+            ]
+        };
+
+        // UI Core Functions
+        const render = () => {
+            const root = document.getElementById('root');
+            if (window.state.currentView === 'splash') {
+                root.innerHTML = renderSplash();
+            } else if (!window.state.user && window.state.currentView === 'login') {
+                root.innerHTML = renderLogin();
+            } else {
+                root.innerHTML = renderLayout(renderActiveView());
+            }
+            lucide.createIcons();
+        };
+
+        const renderSplash = () => `
+            <div class="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center z-50 animate-fade-out">
+                <div class="relative w-32 h-32 flex items-center justify-center">
+                    <div class="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <i data-lucide="terminal" class="text-blue-500 w-12 h-12"></i>
+                </div>
+                <h1 class="mt-8 text-4xl font-black text-white tracking-[0.2em] animate-pulse">ALGOMASTER</h1>
+                <p class="text-slate-500 mt-4 font-mono">Loading modules...</p>
+            </div>
+        `;
+
+        const renderLogin = () => `
+            <div class="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+                <div class="bg-slate-900 p-10 rounded-[2.5rem] border border-slate-800 w-full max-w-md shadow-2xl">
+                    <div class="text-center mb-10">
+                        <div class="inline-block p-4 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-600/20">
+                            <i data-lucide="user-check" class="text-white w-8 h-8"></i>
+                        </div>
+                        <h2 class="text-3xl font-bold text-white">Login Mahasiswa</h2>
+                        <p class="text-slate-400 mt-2">Masuk untuk menyimpan progress belajar Anda</p>
+                    </div>
+                    <button onclick="window.handleLogin()" class="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold text-white transition-all active:scale-95 shadow-xl shadow-blue-600/20">
+                        Masuk Tanpa Password
+                    </button>
+                    <p class="text-center text-xs text-slate-600 mt-8 uppercase tracking-widest">Powered by Firebase Auth</p>
+                </div>
+            </div>
+        `;
+
+        const renderLayout = (content) => `
+            <div class="min-h-screen bg-slate-950 text-slate-200 pb-24 md:pb-0 md:pl-64">
+                <!-- Sidebar Desktop -->
+                <aside class="hidden md:flex flex-col w-64 bg-slate-900 border-r border-slate-800 p-6 fixed left-0 top-0 h-full z-40">
+                    <div class="flex items-center gap-3 mb-12">
+                        <div class="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-600/30">
+                            <i data-lucide="cpu" class="text-white w-6 h-6"></i>
+                        </div>
+                        <span class="font-black text-xl tracking-tight text-white uppercase">AlgoMaster</span>
+                    </div>
+                    <nav class="space-y-3 flex-1">
+                        ${renderNavButtons('desktop')}
+                    </nav>
+                    <button onclick="window.handleLogout()" class="flex items-center gap-4 p-4 rounded-xl text-red-400 hover:bg-red-500/10 transition-all mt-auto">
+                        <i data-lucide="log-out"></i> Keluar
+                    </button>
+                </aside>
+
+                <!-- Main Content -->
+                <main class="p-6 md:p-10 max-w-6xl mx-auto animate-fade-in">
+                    ${content}
+                </main>
+
+                <!-- Bottom Navbar Mobile -->
+                <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-xl border-t border-slate-800 px-6 py-4 flex justify-between items-center z-50">
+                    ${renderNavButtons('mobile')}
+                </nav>
+            </div>
+        `;
+
+        const renderNavButtons = (mode) => {
+            const tabs = [
+                { id: 'dashboard', icon: 'home', label: 'Home' },
+                { id: 'leaderboard', icon: 'trophy', label: 'Ranking' },
+                { id: 'kamus', icon: 'book', label: 'Kamus' },
+                { id: 'help', icon: 'help-circle', label: 'Panduan' },
+                { id: 'profile', icon: 'user', label: 'Profil' }
+            ];
+            
+            return tabs.map(tab => {
+                const isActive = window.state.currentView === tab.id;
+                if (mode === 'mobile') {
+                    return `<button onclick="window.setView('${tab.id}')" class="flex flex-col items-center gap-1 ${isActive ? 'text-blue-500' : 'text-slate-500'}">
+                        <i data-lucide="${tab.icon}" class="w-6 h-6"></i>
+                        <span class="text-[10px] font-bold uppercase tracking-tighter">${tab.label}</span>
+                    </button>`;
+                }
+                return `<button onclick="window.setView('${tab.id}')" class="w-full flex items-center gap-4 p-4 rounded-xl transition-all ${isActive ? 'bg-blue-600/10 text-blue-500 border border-blue-500/20' : 'hover:bg-slate-800 text-slate-400 border border-transparent'}">
+                    <i data-lucide="${tab.icon}"></i> ${tab.label}
+                </button>`;
+            }).join('');
+        };
+
+        const renderActiveView = () => {
+            switch(window.state.currentView) {
+                case 'dashboard': return renderDashboard();
+                case 'materi-detail': return renderMateriDetail();
+                case 'leaderboard': return renderLeaderboard();
+                case 'kamus': return renderKamus();
+                case 'help': return renderHelp();
+                case 'profile': return renderProfile();
+                default: return renderDashboard();
+            }
+        };
+
+        const renderDashboard = () => `
+            <div class="mb-10">
+                <h1 class="text-4xl font-extrabold text-white mb-2">Halo, Pelajar! 👋</h1>
+                <p class="text-slate-400">Pilih algoritma yang ingin kamu kuasai hari ini.</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                ${window.state.materi.map(m => `
+                    <div class="group perspective-1000">
+                        <div onclick="window.openMateri('${m.id}')" class="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] cursor-pointer transform-style-3d transition-all duration-500 hover:rotate-y-12 hover:-translate-y-2 hover:border-blue-500/50 hover:shadow-2xl hover:shadow-blue-500/10">
+                            <div class="flex justify-between items-start mb-6">
+                                <div class="p-3 bg-slate-800 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    <i data-lucide="code-2"></i>
+                                </div>
+                                <span class="text-[10px] font-bold px-3 py-1 bg-slate-800 text-slate-400 rounded-full uppercase tracking-widest border border-slate-700">${m.difficulty}</span>
+                            </div>
+                            <h3 class="text-xl font-bold text-white mb-2">${m.title}</h3>
+                            <p class="text-sm text-slate-400 mb-6 line-clamp-2">${m.desc}</p>
+                            <div class="flex items-center justify-between">
+                                <span class="text-blue-500 text-sm font-bold flex items-center gap-2">Mulai Belajar <i data-lucide="chevron-right" class="w-4 h-4"></i></span>
+                                ${window.state.progress.includes(m.id) ? '<i data-lucide="check-circle" class="text-green-500 w-5 h-5"></i>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+
+        const renderMateriDetail = () => {
+            const m = window.state.selectedMateri;
+            return `
+                <div class="animate-fade-in">
+                    <button onclick="window.setView('dashboard')" class="flex items-center gap-2 text-slate-500 hover:text-white mb-8 group">
+                        <i data-lucide="arrow-left" class="w-4 h-4 group-hover:-translate-x-1 transition-transform"></i> Kembali ke Dashboard
+                    </button>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2 space-y-8">
+                            <!-- Header & Deskripsi -->
+                            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl">
+                                <h1 class="text-4xl font-black text-white mb-6 tracking-tight">${m.title}</h1>
+                                <p class="text-slate-300 leading-relaxed text-lg mb-8">${m.desc}</p>
+                                
+                                <div class="bg-slate-950 border border-slate-800 rounded-2xl p-6">
+                                    <h4 class="text-blue-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-tighter">
+                                        <i data-lucide="activity" class="w-4 h-4"></i> Visualisasi Alur
+                                    </h4>
+                                    <div class="flex flex-wrap gap-3 justify-center py-6">
+                                        ${[5, 2, 9, 1].map((n, i) => `
+                                            <div class="w-12 h-16 bg-slate-800 rounded-xl border-b-4 border-blue-600 flex items-center justify-center font-mono text-xl font-bold animate-bounce" style="animation-delay:${i*0.1}s">${n}</div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- CODE EDITOR & CONSOLE (NEW) -->
+                            <div class="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+                                <div class="bg-slate-800/50 p-4 border-b border-slate-800 flex justify-between items-center">
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex gap-1">
+                                            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                            <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                        </div>
+                                        <span class="text-xs font-mono text-slate-500 ml-4">main.js</span>
+                                    </div>
+                                    <button onclick="window.runCode()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 text-sm transition-all active:scale-95 shadow-lg shadow-green-600/20">
+                                        <i data-lucide="play" class="w-4 h-4 fill-current"></i> Jalankan
+                                    </button>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 h-[400px]">
+                                    <textarea id="editor" class="w-full h-full bg-slate-950 p-6 font-mono text-sm text-blue-400 focus:outline-none resize-none leading-relaxed" spellcheck="false">${m.code}</textarea>
+                                    <div class="bg-black p-6 border-l border-slate-800 flex flex-col">
+                                        <div class="text-[10px] text-slate-600 font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
+                                            <i data-lucide="terminal" class="w-3 h-3"></i> Output Konsol
+                                        </div>
+                                        <div id="console" class="flex-1 font-mono text-xs text-green-500 overflow-y-auto space-y-2 whitespace-pre-wrap">
+                                            <span class="text-slate-700 italic">// Klik jalankan untuk melihat hasil...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sidebar Detail -->
+                        <div class="space-y-6">
+                            <div class="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-lg">
+                                <div class="aspect-video bg-black">
+                                    <iframe class="w-full h-full" src="${m.video}" frameborder="0" allowfullscreen></iframe>
+                                </div>
+                                <div class="p-6">
+                                    <h4 class="font-bold text-white mb-2">Video Tutorial</h4>
+                                    <p class="text-xs text-slate-500">Tonton penjelasan mendalam mengenai implementasi algoritma ini.</p>
+                                </div>
+                            </div>
+
+                            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+                                <button onclick="window.toggleFavorite('${m.id}')" class="w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${window.state.favorites.includes(m.id) ? 'bg-pink-600 text-white' : 'bg-slate-800 text-slate-400'}">
+                                    <i data-lucide="heart" class="${window.state.favorites.includes(m.id) ? 'fill-current' : ''}"></i> Favorit
+                                </button>
+                                <button onclick="window.markComplete('${m.id}')" class="w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 shadow-xl shadow-blue-600/20 transition-all">
+                                    <i data-lucide="check-circle"></i> Selesai Pelajari
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderLeaderboard = () => `
+            <div class="max-w-2xl mx-auto">
+                <div class="text-center mb-10">
+                    <h1 class="text-4xl font-black text-white mb-2 uppercase italic tracking-tighter">Leaderboard</h1>
+                    <p class="text-slate-500">Mahasiswa teraktif dengan skor kuis tertinggi</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                    <div class="bg-blue-600 px-8 py-4 text-white font-bold flex justify-between items-center">
+                        <span>Peringkat</span>
+                        <span>Skor (EXP)</span>
+                    </div>
+                    <div class="divide-y divide-slate-800">
+                        ${window.state.leaderboard.length ? window.state.leaderboard.map((u, i) => `
+                            <div class="px-8 py-6 flex items-center gap-6 hover:bg-slate-800/50 transition-all">
+                                <span class="text-2xl font-black ${i === 0 ? 'text-yellow-500' : 'text-slate-600'} w-8">${i+1}</span>
+                                <div class="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-500 font-bold border border-blue-500/20 uppercase">${u.name.charAt(0)}</div>
+                                <div class="flex-1">
+                                    <p class="font-bold text-white">${u.name}</p>
+                                    <p class="text-[10px] text-slate-600 uppercase font-mono tracking-tighter">${u.id}</p>
+                                </div>
+                                <span class="font-mono text-blue-400 font-bold">${u.score}</span>
+                            </div>
+                        `).join('') : '<div class="p-10 text-center text-slate-500 italic">Belum ada data peringkat.</div>'}
+                    </div>
+                </div>
+            </div>
+ 
