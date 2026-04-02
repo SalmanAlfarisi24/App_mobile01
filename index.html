@@ -300,4 +300,228 @@
                     </div>
                 </div>
             </div>
- 
+        `;
+
+        const renderKamus = () => `
+            <div class="max-w-4xl mx-auto">
+                <h1 class="text-3xl font-black text-white mb-10">Kamus Istilah Informatika</h1>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${window.state.kamus.map(k => `
+                        <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 hover:border-blue-500 transition-all group">
+                            <h4 class="text-blue-500 font-bold mb-2 uppercase tracking-widest text-xs">${k.term}</h4>
+                            <p class="text-slate-400 text-sm leading-relaxed">${k.def}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        const renderHelp = () => `
+            <div class="max-w-3xl mx-auto bg-slate-900 rounded-[2.5rem] border border-slate-800 p-10">
+                <h1 class="text-3xl font-bold text-white mb-8 flex items-center gap-4">
+                    <i data-lucide="help-circle" class="text-blue-500 w-10 h-10"></i> Panduan Digital
+                </h1>
+                <div class="space-y-8 text-slate-300">
+                    <section>
+                        <h4 class="text-white font-bold mb-2">1. Eksplorasi Materi</h4>
+                        <p>Pilih algoritma di dashboard. Kamu bisa membaca teori, melihat visualisasi, dan menonton video tutorial.</p>
+                    </section>
+                    <section>
+                        <h4 class="text-white font-bold mb-2">2. Editor & Konsol</h4>
+                        <p>Gunakan editor di bagian bawah setiap materi untuk mempraktikkan kode. Klik "Jalankan" untuk melihat hasilnya di konsol kanan.</p>
+                    </section>
+                    <section>
+                        <h4 class="text-white font-bold mb-2">3. Progres & Favorit</h4>
+                        <p>Simpan materi yang disukai dan tandai materi yang sudah dipelajari untuk mengisi profil kamu.</p>
+                    </section>
+                </div>
+            </div>
+        `;
+
+        const renderProfile = () => `
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-slate-900 border border-slate-800 rounded-[3rem] p-10 flex flex-col md:flex-row items-center gap-10 shadow-2xl">
+                    <div class="w-40 h-40 bg-gradient-to-br from-blue-500 to-indigo-700 rounded-[2.5rem] flex items-center justify-center text-white text-5xl font-black shadow-2xl shadow-blue-600/30">
+                        ${window.state.user.uid.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="flex-1 text-center md:text-left">
+                        <h2 class="text-3xl font-black text-white mb-2">Mhs_${window.state.user.uid.substring(0, 6)}</h2>
+                        <p class="text-slate-500 font-mono text-sm mb-6 uppercase tracking-widest">${window.state.user.uid}</p>
+                        <div class="flex flex-wrap justify-center md:justify-start gap-4">
+                            <div class="bg-slate-800 px-6 py-3 rounded-2xl border border-slate-700">
+                                <span class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest">EXP Point</span>
+                                <span class="text-xl font-bold text-blue-500">${window.state.score}</span>
+                            </div>
+                            <div class="bg-slate-800 px-6 py-3 rounded-2xl border border-slate-700">
+                                <span class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest">Materi Selesai</span>
+                                <span class="text-xl font-bold text-green-500">${window.state.progress.length}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-10 bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8">
+                    <h3 class="text-xl font-bold text-white mb-6">Algoritma Favorit Saya</h3>
+                    ${window.state.favorites.length ? `
+                        <div class="flex flex-wrap gap-2">
+                            ${window.state.favorites.map(f => `<span class="px-4 py-2 bg-pink-500/10 text-pink-500 border border-pink-500/20 rounded-full text-xs font-bold font-mono"># ${f}</span>`).join('')}
+                        </div>
+                    ` : '<p class="text-slate-600 italic">Belum ada algoritma yang difavoritkan.</p>'}
+                </div>
+            </div>
+        `;
+
+        // Action Handlers
+        window.setView = (view) => {
+            window.state.currentView = view;
+            render();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        window.openMateri = (id) => {
+            window.state.selectedMateri = window.state.materi.find(m => m.id === id);
+            window.state.currentView = 'materi-detail';
+            render();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        window.handleLogin = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) { console.error(err); }
+        };
+
+        window.handleLogout = () => {
+            signOut(auth).then(() => location.reload());
+        };
+
+        window.runCode = () => {
+            const code = document.getElementById('editor').value;
+            const con = document.getElementById('console');
+            con.innerHTML = '';
+            
+            const oldLog = console.log;
+            console.log = (...args) => {
+                const div = document.createElement('div');
+                div.className = "flex gap-2 animate-fade-in";
+                div.innerHTML = `<span class="text-slate-600">>></span> <span>${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}</span>`;
+                con.appendChild(div);
+            };
+
+            try {
+                new Function(code)();
+            } catch (err) {
+                const div = document.createElement('div');
+                div.className = "text-red-500 bg-red-500/10 p-2 rounded border-l-2 border-red-500 mt-2";
+                div.innerText = "Error: " + err.message;
+                con.appendChild(div);
+            }
+            console.log = oldLog;
+            con.scrollTop = con.scrollHeight;
+        };
+
+        window.toggleFavorite = async (id) => {
+            if (!window.state.user) return;
+            const ref = doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'profile', 'main');
+            const isFav = window.state.favorites.includes(id);
+            await updateDoc(ref, { favorites: isFav ? arrayRemove(id) : arrayUnion(id) });
+        };
+
+        window.markComplete = async (id) => {
+            if (!window.state.user) return;
+            const ref = doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'profile', 'main');
+            const lbRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', window.state.user.uid);
+            
+            const newScore = window.state.score + 50;
+            await updateDoc(ref, { 
+                progress: arrayUnion(id),
+                score: newScore
+            });
+            await setDoc(lbRef, { 
+                name: `Mhs_${window.state.user.uid.substring(0, 6)}`, 
+                score: newScore, 
+                id: window.state.user.uid 
+            }, { merge: true });
+            
+            alert("Materi Selesai! Kamu dapat 50 EXP.");
+            window.setView('dashboard');
+        };
+
+        // Firebase Listeners
+        onAuthStateChanged(auth, async (user) => {
+            window.state.user = user;
+            if (user) {
+                const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
+                const userSnap = await getDoc(userRef);
+                if (!userSnap.exists()) {
+                    await setDoc(userRef, { progress: [], favorites: [], score: 0 });
+                }
+
+                onSnapshot(userRef, (snap) => {
+                    if (snap.exists()) {
+                        const data = snap.data();
+                        window.state.progress = data.progress || [];
+                        window.state.favorites = data.favorites || [];
+                        window.state.score = data.score || 0;
+                        render();
+                    }
+                });
+
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), (snap) => {
+                    const lb = [];
+                    snap.forEach(d => lb.push(d.data()));
+                    window.state.leaderboard = lb.sort((a, b) => b.score - a.score);
+                    render();
+                });
+
+                if (window.state.currentView === 'login' || window.state.currentView === 'splash') {
+                    window.state.currentView = 'dashboard';
+                }
+            } else {
+                window.state.currentView = 'login';
+            }
+            render();
+        });
+
+        window.onload = render;
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        body { 
+            font-family: 'Space Grotesk', sans-serif; 
+            background-color: #020617;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .font-mono, textarea, #console { font-family: 'JetBrains Mono', monospace; }
+
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-3d { transform-style: preserve-3d; }
+        .rotate-y-12 { transform: rotateY(12deg); }
+
+        @keyframes fade-out {
+            0%, 80% { opacity: 1; }
+            100% { opacity: 0; pointer-events: none; }
+        }
+        .animate-fade-out { animation: fade-out 2.5s forwards; }
+
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fade-in 0.4s ease-out; }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>
