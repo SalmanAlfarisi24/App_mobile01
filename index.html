@@ -12,21 +12,30 @@
         import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Configuration
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'algomaster-v2';
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // --- KONFIGURASI FIREBASE ---
+        // Jika di GitHub, ganti isi object di bawah ini dengan config dari Firebase Console Anda
+        let firebaseConfig;
+        try {
+            firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        } catch (e) {
+            firebaseConfig = {}; 
+        }
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'algomaster-standalone';
 
         // State Global
         window.state = {
             user: null,
+            isDemoMode: false,
             currentView: 'splash',
             selectedMateri: null,
             progress: [],
             favorites: [],
-            leaderboard: [],
+            leaderboard: [
+                { name: "Budi Santoso", score: 1250, id: "mhs_001" },
+                { name: "Siti Aminah", score: 950, id: "mhs_002" },
+                { name: "Andi Wijaya", score: 800, id: "mhs_003" }
+            ],
             score: 0,
             materi: [
                 { 
@@ -36,7 +45,7 @@
                     difficulty: 'Mudah', 
                     color: 'from-blue-500 to-cyan-400', 
                     video: 'https://www.youtube.com/embed/xli_Fi7CuzA',
-                    code: `// Coba modifikasi array di bawah ini!\nlet angka = [64, 34, 25, 12, 22, 11, 90];\n\nfunction bubbleSort(arr) {\n  let n = arr.length;\n  for (let i = 0; i < n; i++) {\n    for (let j = 0; j < n - i - 1; j++) {\n      if (arr[j] > arr[j + 1]) {\n        [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];\n      }\n    }\n  }\n  return arr;\n}\n\nconsole.log("Hasil Akhir:", bubbleSort(angka));`
+                    code: `// Implementasi Bubble Sort\nlet angka = [64, 34, 25, 12, 22, 11, 90];\n\nfunction bubbleSort(arr) {\n  let n = arr.length;\n  for (let i = 0; i < n; i++) {\n    for (let j = 0; j < n - i - 1; j++) {\n      if (arr[j] > arr[j + 1]) {\n        [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];\n      }\n    }\n  }\n  return arr;\n}\n\nconsole.log("Data Awal:", [64, 34, 25, 12, 22, 11, 90]);\nconsole.log("Data Terurut:", bubbleSort(angka));`
                 },
                 { 
                     id: 'binary-search', 
@@ -45,7 +54,7 @@
                     difficulty: 'Menengah', 
                     color: 'from-purple-500 to-pink-400', 
                     video: 'https://www.youtube.com/embed/MFhxShGxHWc',
-                    code: `let data = [10, 20, 30, 40, 50, 60, 70];\nlet cari = 40;\n\nfunction binarySearch(arr, target) {\n  let low = 0, high = arr.length - 1;\n  while (low <= high) {\n    let mid = Math.floor((low + high) / 2);\n    if (arr[mid] === target) return mid;\n    if (arr[mid] < target) low = mid + 1;\n    else high = mid - 1;\n  }\n  return -1;\n}\n\nconsole.log("Angka " + cari + " ada di indeks: " + binarySearch(data, cari));`
+                    code: `let data = [10, 20, 30, 40, 50, 60, 70];\nlet cari = 40;\n\nfunction binarySearch(arr, target) {\n  let low = 0, high = arr.length - 1;\n  while (low <= high) {\n    let mid = Math.floor((low + high) / 2);\n    if (arr[mid] === target) return mid;\n    if (arr[mid] < target) low = mid + 1;\n    else high = mid - 1;\n  }\n  return -1;\n}\n\nconsole.log("Target pencarian:", cari);\nconsole.log("Hasil indeks:", binarySearch(data, cari));`
                 }
             ],
             kamus: [
@@ -56,12 +65,26 @@
             ]
         };
 
-        // UI Core Functions
+        // Initialize Firebase with Error Handling
+        let auth, db;
+        try {
+            if (firebaseConfig.apiKey) {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+            } else {
+                window.state.isDemoMode = true;
+            }
+        } catch (e) {
+            window.state.isDemoMode = true;
+        }
+
+        // --- UI RENDERER ---
         const render = () => {
             const root = document.getElementById('root');
             if (window.state.currentView === 'splash') {
                 root.innerHTML = renderSplash();
-            } else if (!window.state.user && window.state.currentView === 'login') {
+            } else if (!window.state.user && !window.state.isDemoMode && window.state.currentView === 'login') {
                 root.innerHTML = renderLogin();
             } else {
                 root.innerHTML = renderLayout(renderActiveView());
@@ -76,8 +99,8 @@
                     <div class="absolute inset-0 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                     <i data-lucide="terminal" class="text-blue-500 w-12 h-12"></i>
                 </div>
-                <h1 class="mt-8 text-4xl font-black text-white tracking-[0.2em] animate-pulse">ALGOMASTER</h1>
-                <p class="text-slate-500 mt-4 font-mono">Loading modules...</p>
+                <h1 class="mt-8 text-4xl font-black text-white tracking-[0.2em] animate-pulse uppercase">AlgoMaster</h1>
+                <p class="text-slate-500 mt-4 font-mono">${window.state.isDemoMode ? 'Demo Mode Active' : 'Initializing Firebase...'}</p>
             </div>
         `;
 
@@ -85,23 +108,22 @@
             <div class="min-h-screen bg-slate-950 flex items-center justify-center p-6">
                 <div class="bg-slate-900 p-10 rounded-[2.5rem] border border-slate-800 w-full max-w-md shadow-2xl">
                     <div class="text-center mb-10">
-                        <div class="inline-block p-4 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-600/20">
+                        <div class="inline-block p-4 bg-blue-600 rounded-2xl mb-4 shadow-lg">
                             <i data-lucide="user-check" class="text-white w-8 h-8"></i>
                         </div>
                         <h2 class="text-3xl font-bold text-white">Login Mahasiswa</h2>
-                        <p class="text-slate-400 mt-2">Masuk untuk menyimpan progress belajar Anda</p>
+                        <p class="text-slate-400 mt-2">Masuk untuk menyimpan progress belajar</p>
                     </div>
-                    <button onclick="window.handleLogin()" class="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold text-white transition-all active:scale-95 shadow-xl shadow-blue-600/20">
-                        Masuk Tanpa Password
+                    <button onclick="window.handleLogin()" class="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold text-white transition-all active:scale-95">
+                        Masuk Sekarang
                     </button>
-                    <p class="text-center text-xs text-slate-600 mt-8 uppercase tracking-widest">Powered by Firebase Auth</p>
+                    <button onclick="window.enableDemo()" class="w-full mt-4 text-slate-500 text-sm hover:text-white transition-colors">Gunakan Mode Demo (Tanpa Simpan)</button>
                 </div>
             </div>
         `;
 
         const renderLayout = (content) => `
             <div class="min-h-screen bg-slate-950 text-slate-200 pb-24 md:pb-0 md:pl-64">
-                <!-- Sidebar Desktop -->
                 <aside class="hidden md:flex flex-col w-64 bg-slate-900 border-r border-slate-800 p-6 fixed left-0 top-0 h-full z-40">
                     <div class="flex items-center gap-3 mb-12">
                         <div class="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-600/30">
@@ -117,12 +139,11 @@
                     </button>
                 </aside>
 
-                <!-- Main Content -->
                 <main class="p-6 md:p-10 max-w-6xl mx-auto animate-fade-in">
+                    ${window.state.isDemoMode ? '<div class="mb-4 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-center text-xs text-yellow-500 font-bold uppercase tracking-widest">Running in Demo Mode (Local Only)</div>' : ''}
                     ${content}
                 </main>
 
-                <!-- Bottom Navbar Mobile -->
                 <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-xl border-t border-slate-800 px-6 py-4 flex justify-between items-center z-50">
                     ${renderNavButtons('mobile')}
                 </nav>
@@ -137,7 +158,6 @@
                 { id: 'help', icon: 'help-circle', label: 'Panduan' },
                 { id: 'profile', icon: 'user', label: 'Profil' }
             ];
-            
             return tabs.map(tab => {
                 const isActive = window.state.currentView === tab.id;
                 if (mode === 'mobile') {
@@ -169,7 +189,6 @@
                 <h1 class="text-4xl font-extrabold text-white mb-2">Halo, Pelajar! 👋</h1>
                 <p class="text-slate-400">Pilih algoritma yang ingin kamu kuasai hari ini.</p>
             </div>
-            
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 ${window.state.materi.map(m => `
                     <div class="group perspective-1000">
@@ -197,12 +216,11 @@
             return `
                 <div class="animate-fade-in">
                     <button onclick="window.setView('dashboard')" class="flex items-center gap-2 text-slate-500 hover:text-white mb-8 group">
-                        <i data-lucide="arrow-left" class="w-4 h-4 group-hover:-translate-x-1 transition-transform"></i> Kembali ke Dashboard
+                        <i data-lucide="arrow-left" class="w-4 h-4 group-hover:-translate-x-1 transition-transform"></i> Kembali
                     </button>
                     
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div class="lg:col-span-2 space-y-8">
-                            <!-- Header & Deskripsi -->
                             <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl">
                                 <h1 class="text-4xl font-black text-white mb-6 tracking-tight">${m.title}</h1>
                                 <p class="text-slate-300 leading-relaxed text-lg mb-8">${m.desc}</p>
@@ -219,7 +237,7 @@
                                 </div>
                             </div>
 
-                            <!-- CODE EDITOR & CONSOLE (NEW) -->
+                            <!-- CODE EDITOR & CONSOLE -->
                             <div class="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
                                 <div class="bg-slate-800/50 p-4 border-b border-slate-800 flex justify-between items-center">
                                     <div class="flex items-center gap-2">
@@ -248,15 +266,14 @@
                             </div>
                         </div>
 
-                        <!-- Sidebar Detail -->
                         <div class="space-y-6">
                             <div class="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-lg">
                                 <div class="aspect-video bg-black">
                                     <iframe class="w-full h-full" src="${m.video}" frameborder="0" allowfullscreen></iframe>
                                 </div>
                                 <div class="p-6">
-                                    <h4 class="font-bold text-white mb-2">Video Tutorial</h4>
-                                    <p class="text-xs text-slate-500">Tonton penjelasan mendalam mengenai implementasi algoritma ini.</p>
+                                    <h4 class="font-bold text-white mb-2 text-sm">Video Tutorial</h4>
+                                    <p class="text-[10px] text-slate-500">Tonton penjelasan mendalam mengenai algoritma.</p>
                                 </div>
                             </div>
 
@@ -286,7 +303,7 @@
                         <span>Skor (EXP)</span>
                     </div>
                     <div class="divide-y divide-slate-800">
-                        ${window.state.leaderboard.length ? window.state.leaderboard.map((u, i) => `
+                        ${window.state.leaderboard.map((u, i) => `
                             <div class="px-8 py-6 flex items-center gap-6 hover:bg-slate-800/50 transition-all">
                                 <span class="text-2xl font-black ${i === 0 ? 'text-yellow-500' : 'text-slate-600'} w-8">${i+1}</span>
                                 <div class="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-500 font-bold border border-blue-500/20 uppercase">${u.name.charAt(0)}</div>
@@ -296,7 +313,7 @@
                                 </div>
                                 <span class="font-mono text-blue-400 font-bold">${u.score}</span>
                             </div>
-                        `).join('') : '<div class="p-10 text-center text-slate-500 italic">Belum ada data peringkat.</div>'}
+                        `).join('')}
                     </div>
                 </div>
             </div>
@@ -330,48 +347,38 @@
                         <h4 class="text-white font-bold mb-2">2. Editor & Konsol</h4>
                         <p>Gunakan editor di bagian bawah setiap materi untuk mempraktikkan kode. Klik "Jalankan" untuk melihat hasilnya di konsol kanan.</p>
                     </section>
-                    <section>
-                        <h4 class="text-white font-bold mb-2">3. Progres & Favorit</h4>
-                        <p>Simpan materi yang disukai dan tandai materi yang sudah dipelajari untuk mengisi profil kamu.</p>
-                    </section>
                 </div>
             </div>
         `;
 
-        const renderProfile = () => `
-            <div class="max-w-4xl mx-auto">
-                <div class="bg-slate-900 border border-slate-800 rounded-[3rem] p-10 flex flex-col md:flex-row items-center gap-10 shadow-2xl">
-                    <div class="w-40 h-40 bg-gradient-to-br from-blue-500 to-indigo-700 rounded-[2.5rem] flex items-center justify-center text-white text-5xl font-black shadow-2xl shadow-blue-600/30">
-                        ${window.state.user.uid.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="flex-1 text-center md:text-left">
-                        <h2 class="text-3xl font-black text-white mb-2">Mhs_${window.state.user.uid.substring(0, 6)}</h2>
-                        <p class="text-slate-500 font-mono text-sm mb-6 uppercase tracking-widest">${window.state.user.uid}</p>
-                        <div class="flex flex-wrap justify-center md:justify-start gap-4">
-                            <div class="bg-slate-800 px-6 py-3 rounded-2xl border border-slate-700">
-                                <span class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest">EXP Point</span>
-                                <span class="text-xl font-bold text-blue-500">${window.state.score}</span>
-                            </div>
-                            <div class="bg-slate-800 px-6 py-3 rounded-2xl border border-slate-700">
-                                <span class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest">Materi Selesai</span>
-                                <span class="text-xl font-bold text-green-500">${window.state.progress.length}</span>
+        const renderProfile = () => {
+            const userUid = window.state.user ? window.state.user.uid : 'GUEST_USER';
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <div class="bg-slate-900 border border-slate-800 rounded-[3rem] p-10 flex flex-col md:flex-row items-center gap-10 shadow-2xl">
+                        <div class="w-40 h-40 bg-gradient-to-br from-blue-500 to-indigo-700 rounded-[2.5rem] flex items-center justify-center text-white text-5xl font-black shadow-2xl">
+                            ${userUid.charAt(0)}
+                        </div>
+                        <div class="flex-1 text-center md:text-left">
+                            <h2 class="text-3xl font-black text-white mb-2">Mhs_${userUid.substring(0, 6)}</h2>
+                            <p class="text-slate-500 font-mono text-sm mb-6 uppercase tracking-widest">${userUid}</p>
+                            <div class="flex flex-wrap justify-center md:justify-start gap-4">
+                                <div class="bg-slate-800 px-6 py-3 rounded-2xl border border-slate-700">
+                                    <span class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest">EXP Point</span>
+                                    <span class="text-xl font-bold text-blue-500">${window.state.score}</span>
+                                </div>
+                                <div class="bg-slate-800 px-6 py-3 rounded-2xl border border-slate-700">
+                                    <span class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest">Materi Selesai</span>
+                                    <span class="text-xl font-bold text-green-500">${window.state.progress.length}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                
-                <div class="mt-10 bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8">
-                    <h3 class="text-xl font-bold text-white mb-6">Algoritma Favorit Saya</h3>
-                    ${window.state.favorites.length ? `
-                        <div class="flex flex-wrap gap-2">
-                            ${window.state.favorites.map(f => `<span class="px-4 py-2 bg-pink-500/10 text-pink-500 border border-pink-500/20 rounded-full text-xs font-bold font-mono"># ${f}</span>`).join('')}
-                        </div>
-                    ` : '<p class="text-slate-600 italic">Belum ada algoritma yang difavoritkan.</p>'}
-                </div>
-            </div>
-        `;
+            `;
+        }
 
-        // Action Handlers
+        // --- HANDLERS ---
         window.setView = (view) => {
             window.state.currentView = view;
             render();
@@ -385,17 +392,26 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
+        window.enableDemo = () => {
+            window.state.isDemoMode = true;
+            window.state.user = { uid: 'GUEST_DEMO_ACCOUNT' };
+            window.state.currentView = 'dashboard';
+            render();
+        };
+
         window.handleLogin = async () => {
+            if (window.state.isDemoMode) return window.enableDemo();
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
-            } catch (err) { console.error(err); }
+            } catch (err) { window.enableDemo(); }
         };
 
         window.handleLogout = () => {
+            if (window.state.isDemoMode) return location.reload();
             signOut(auth).then(() => location.reload());
         };
 
@@ -403,7 +419,6 @@
             const code = document.getElementById('editor').value;
             const con = document.getElementById('console');
             con.innerHTML = '';
-            
             const oldLog = console.log;
             console.log = (...args) => {
                 const div = document.createElement('div');
@@ -411,10 +426,7 @@
                 div.innerHTML = `<span class="text-slate-600">>></span> <span>${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}</span>`;
                 con.appendChild(div);
             };
-
-            try {
-                new Function(code)();
-            } catch (err) {
+            try { new Function(code)(); } catch (err) {
                 const div = document.createElement('div');
                 div.className = "text-red-500 bg-red-500/10 p-2 rounded border-l-2 border-red-500 mt-2";
                 div.innerText = "Error: " + err.message;
@@ -425,100 +437,84 @@
         };
 
         window.toggleFavorite = async (id) => {
-            if (!window.state.user) return;
+            if (!window.state.user || window.state.isDemoMode) {
+                const idx = window.state.favorites.indexOf(id);
+                if (idx === -1) window.state.favorites.push(id);
+                else window.state.favorites.splice(idx, 1);
+                render(); return;
+            }
             const ref = doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'profile', 'main');
             const isFav = window.state.favorites.includes(id);
             await updateDoc(ref, { favorites: isFav ? arrayRemove(id) : arrayUnion(id) });
         };
 
         window.markComplete = async (id) => {
-            if (!window.state.user) return;
+            if (!window.state.user || window.state.isDemoMode) {
+                if (!window.state.progress.includes(id)) window.state.progress.push(id);
+                window.state.score += 50;
+                alert("Materi Selesai! (Mode Demo: Tidak Disimpan)");
+                window.setView('dashboard'); return;
+            }
             const ref = doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'profile', 'main');
             const lbRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', window.state.user.uid);
-            
             const newScore = window.state.score + 50;
-            await updateDoc(ref, { 
-                progress: arrayUnion(id),
-                score: newScore
-            });
-            await setDoc(lbRef, { 
-                name: `Mhs_${window.state.user.uid.substring(0, 6)}`, 
-                score: newScore, 
-                id: window.state.user.uid 
-            }, { merge: true });
-            
+            await updateDoc(ref, { progress: arrayUnion(id), score: newScore });
+            await setDoc(lbRef, { name: `Mhs_${window.state.user.uid.substring(0, 6)}`, score: newScore, id: window.state.user.uid }, { merge: true });
             alert("Materi Selesai! Kamu dapat 50 EXP.");
             window.setView('dashboard');
         };
 
-        // Firebase Listeners
-        onAuthStateChanged(auth, async (user) => {
-            window.state.user = user;
-            if (user) {
-                const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
-                const userSnap = await getDoc(userRef);
-                if (!userSnap.exists()) {
-                    await setDoc(userRef, { progress: [], favorites: [], score: 0 });
-                }
-
-                onSnapshot(userRef, (snap) => {
-                    if (snap.exists()) {
-                        const data = snap.data();
-                        window.state.progress = data.progress || [];
-                        window.state.favorites = data.favorites || [];
-                        window.state.score = data.score || 0;
+        // Auth Logic
+        if (auth) {
+            onAuthStateChanged(auth, async (user) => {
+                window.state.user = user;
+                if (user) {
+                    const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
+                    const userSnap = await getDoc(userRef);
+                    if (!userSnap.exists()) await setDoc(userRef, { progress: [], favorites: [], score: 0 });
+                    onSnapshot(userRef, (snap) => {
+                        if (snap.exists()) {
+                            const data = snap.data();
+                            window.state.progress = data.progress || [];
+                            window.state.favorites = data.favorites || [];
+                            window.state.score = data.score || 0;
+                            render();
+                        }
+                    });
+                    onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), (snap) => {
+                        const lb = [];
+                        snap.forEach(d => lb.push(d.data()));
+                        window.state.leaderboard = lb.sort((a, b) => b.score - a.score).slice(0, 10);
                         render();
-                    }
-                });
-
-                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), (snap) => {
-                    const lb = [];
-                    snap.forEach(d => lb.push(d.data()));
-                    window.state.leaderboard = lb.sort((a, b) => b.score - a.score);
-                    render();
-                });
-
-                if (window.state.currentView === 'login' || window.state.currentView === 'splash') {
-                    window.state.currentView = 'dashboard';
+                    });
+                    if (window.state.currentView === 'login' || window.state.currentView === 'splash') window.state.currentView = 'dashboard';
+                } else {
+                    window.state.currentView = 'login';
                 }
-            } else {
+                render();
+            });
+        } else {
+            // Mode Tanpa Firebase
+            setTimeout(() => { 
                 window.state.currentView = 'login';
-            }
-            render();
-        });
+                render(); 
+            }, 2000);
+        }
 
         window.onload = render;
     </script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
-        
-        body { 
-            font-family: 'Space Grotesk', sans-serif; 
-            background-color: #020617;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
+        body { font-family: 'Space Grotesk', sans-serif; background-color: #020617; -webkit-tap-highlight-color: transparent; }
         .font-mono, textarea, #console { font-family: 'JetBrains Mono', monospace; }
-
         .perspective-1000 { perspective: 1000px; }
         .transform-style-3d { transform-style: preserve-3d; }
         .rotate-y-12 { transform: rotateY(12deg); }
-
-        @keyframes fade-out {
-            0%, 80% { opacity: 1; }
-            100% { opacity: 0; pointer-events: none; }
-        }
+        @keyframes fade-out { 0%, 80% { opacity: 1; } 100% { opacity: 0; pointer-events: none; } }
         .animate-fade-out { animation: fade-out 2.5s forwards; }
-
-        @keyframes fade-in {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fade-in 0.4s ease-out; }
-
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
     </style>
 </head>
 <body>
